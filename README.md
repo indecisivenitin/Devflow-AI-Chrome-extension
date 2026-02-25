@@ -42,6 +42,7 @@ Built with React + TypeScript + Groq API and deployed on Render.
 - CORS (Chrome extension safe config)
 - Deployed on Render
 
----
+---<img width="1454" height="726" alt="image" src="https://github.com/user-attachments/assets/2d8406b7-5f8d-4cb2-a3c5-127698d75135" />
+<img width="1915" height="1016" alt="image" src="https://github.com/user-attachments/assets/00cb4533-15e8-4aea-9799-ef9fff9ee0a7" />
 
-## 📂 Project Structure
+
