@@ -2,95 +2,117 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import Groq from "groq-sdk";
-import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 import compression from "compression";
+import rateLimit from "express-rate-limit";
 
 dotenv.config();
-
-if (!process.env.GROQ_API_KEY) {
-  console.error("❌ GROQ_API_KEY missing in environment variables");
-  process.exit(1);
-}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-/* ---------------- Security Middlewares ---------------- */
+/* =============================
+   Security & Performance
+============================= */
 
-app.use(helmet());
+// Compression
 app.use(compression());
 
+// Rate Limiting
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
-    message: "Too many requests, please try again later."
   })
 );
 
-/* ---------------- CORS ---------------- */
+// Body parser
+app.use(express.json({ limit: "1mb" }));
 
-const allowedOrigins = [
-  process.env.EXTENSION_ORIGIN || ""
-];
+/* =============================
+   CORS (Chrome Extension Safe)
+============================= */
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
+      // Allow no origin (Postman, curl, extension sometimes)
+      if (!origin) return callback(null, true);
+
+      // Allow Chrome extensions
+      if (origin.startsWith("chrome-extension://")) {
+        return callback(null, true);
       }
+
+      // Allow local dev
+      if (origin.includes("localhost")) {
+        return callback(null, true);
+      }
+
+      // Allow your Render frontend if needed
+      if (
+        origin ===
+        "https://devflow-ai-chrome-extension.onrender.com"
+      ) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
     },
-    methods: ["POST"],
-    allowedHeaders: ["Content-Type"]
+    methods: ["GET", "POST"],
+    credentials: true,
   })
 );
 
-app.use(express.json());
+/* =============================
+   Groq Setup
+============================= */
 
-/* ---------------- Groq Setup ---------------- */
+if (!process.env.GROQ_API_KEY) {
+  throw new Error("Missing GROQ_API_KEY in environment variables");
+}
 
 const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY
+  apiKey: process.env.GROQ_API_KEY,
 });
 
-/* ---------------- Health Check ---------------- */
+/* =============================
+   Routes
+============================= */
 
+// Health check (important for Render)
 app.get("/", (_req, res) => {
-  res.json({ status: "DevFlow API running" });
+  res.status(200).json({
+    status: "DevFlow API running 🚀",
+  });
 });
-
-/* ---------------- Ask Route (Streaming) ---------------- */
 
 app.post("/api/ask", async (req, res) => {
   try {
     const { prompt } = req.body;
 
-    if (!prompt || typeof prompt !== "string") {
-      return res.status(400).json({ error: "Valid prompt required" });
+    if (!prompt) {
+      return res.status(400).json({ error: "Prompt is required" });
     }
 
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.setHeader("Transfer-Encoding", "chunked");
-
+    // Streaming response
     const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      stream: true,
       messages: [
         {
           role: "system",
           content:
-            "You are DevFlow, a professional AI assistant that provides clear, concise, and well-formatted answers."
+            "You are DevFlow, a professional AI coding assistant. Provide clear, concise, structured answers with proper formatting.",
         },
         {
           role: "user",
-          content: prompt
-        }
+          content: prompt,
+        },
       ],
-      model: "llama-3.1-8b-instant",
-      stream: true
     });
+
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Transfer-Encoding", "chunked");
 
     for await (const chunk of completion) {
       const content = chunk.choices[0]?.delta?.content;
@@ -100,14 +122,15 @@ app.post("/api/ask", async (req, res) => {
     }
 
     res.end();
-
   } catch (error) {
-    console.error("❌ API Error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("API Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-/* ---------------- Start Server ---------------- */
+/* =============================
+   Start Server
+============================= */
 
 app.listen(PORT, () => {
   console.log(`🚀 DevFlow API running on port ${PORT}`);
