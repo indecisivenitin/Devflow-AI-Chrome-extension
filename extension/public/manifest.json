@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "DevFlow",
+  "description": "AI assistant that understands selected content on any webpage",
+  "version": "1.0.0",
+
+  "permissions": [
+    "sidePanel",
+    "contextMenus",
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+
+  "host_permissions": [
+    "<all_urls>",
+    "http://localhost:3000/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "side_panel": {
+    "default_path": "index.html"
+  },
+
+  "action": {
+    "default_title": "DevFlow"
+  }
+}
